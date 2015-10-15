@@ -92,20 +92,25 @@ char **split_line(char *string) {
 	}
 }
 
-int execute(char **arguments) {
+int execute(char **args) {
 	int i = 0;
 	//While loop displays arguments for testing purposes
-	while(arguments[i] != NULL) {
-		printf("Arg #%i: %s\n", i, arguments[i]);
+	while(args[i] != NULL) {
+		printf("Arg #%i: %s\n", i, args[i]);
 		i++;
 	}
-	if(strcmp(arguments[0], "exit") == 0) {
+	if(strcmp(args[0], "exit") == 0) {
 		exit(0);
-	} else if(strcmp(arguments[0], "pwd") == 0) {
+	} else if(strcmp(args[0], "pwd") == 0) {
 		char temp[PATH_MAX + 1];
 		char *cwd;
 		cwd = getcwd(temp, 1024);
 		printf("%s\n", cwd);
+	} else if(strcmp(args[0], "cd") == 0) {
+		if(chdir(args[1]) != 0) {
+			printf("cd: %s: No such file or directory\n", args[1]);
+
+		}
 	} else {
 		printf("Command not found\n");
 	}
