@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
+#include <limits.h>
 #define BUFFERSIZE 1024
 #define BUFFERSIZE2 64
 
@@ -91,6 +92,27 @@ char **split_line(char *string) {
 	}
 }
 
+int execute(char **arguments) {
+	int i = 0;
+	//While loop displays arguments for testing purposes
+	while(arguments[i] != NULL) {
+		printf("Arg #%i: %s\n", i, arguments[i]);
+		i++;
+	}
+	if(strcmp(arguments[0], "exit") == 0) {
+		exit(0);
+	} else if(strcmp(arguments[0], "pwd") == 0) {
+		char temp[PATH_MAX + 1];
+		char *cwd;
+		cwd = getcwd(temp, 1024);
+		printf("%s\n", cwd);
+	} else {
+		printf("Command not found\n");
+	}
+	return 0;
+}
+
+
 
 
 int main() {
@@ -104,16 +126,7 @@ int main() {
 		printf(">");
 		string = get_line();
 		arguments = split_line(string);
-		i = 0;
-		while(arguments[i] != NULL) {
-			printf("Arg #%i: %s\n", i, arguments[i]);
-			i++;
-		}
-		if(strcmp(arguments[0], "exit") == 0) {
-			exit(0);
-		} else {
-			printf("Command not found\n");
-		}
+		execute(arguments);
 	} while(true);
 	return 0;
 }
