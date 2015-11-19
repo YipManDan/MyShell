@@ -11,6 +11,7 @@
 char *get_line(void);
 char **split_line(char *);
 int execute(char **);
+int p_forker(char **);
 
 int cd_func(char **);
 int help_func(char **);
@@ -159,6 +160,15 @@ int execute(char **args) {
 	//check to see if args is empty
 	if(i==0)
 		return 1;
+	for(i=0; i<num_main_func(); i++)
+	{
+		if(strcmp(main_str[i], args[0])==0)
+		{
+			return (*main_func[i])(args);
+		}
+	}
+	return p_forker(args);
+	/*
 	//command: exit
 	if(strcmp(args[0], "exit") == 0) {
 		(*main_func[2])(args);
@@ -176,6 +186,7 @@ int execute(char **args) {
 	} else {
 		printf("Command not found\n");
 	}
+	*/
 	return 0;
 }
 
@@ -193,6 +204,15 @@ int cd_func(char **args) {
 }
 
 int help_func(char **args) {
+	int i;
+	printf("\n\nThis is Daniel Yeh's MyShell\n");
+	printf("To please enter in a valid command with or without arguments\n");
+	printf("Here are the MyShell custom commands:\n");
+	for(i=0; i<num_main_func(); i++)
+	{
+		printf("%s\n", main_str[i]);
+	}
+	printf("\nUse the man command for information regarding the other commands\n\n");
 	return 1;
 }
 
@@ -201,7 +221,9 @@ int exit_func(char **args) {
 	return 0;
 }
 
-
+int p_forker(char **args) {
+	return 0;
+}
 
 
 
