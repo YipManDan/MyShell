@@ -49,8 +49,11 @@ int main() {
 		printf(">");
 		string = get_line();
 		arguments = split_line(string);
-		execute(arguments);
-	} while(true);
+		i = execute(arguments);
+
+		free(string);
+		free(arguments);
+	} while(i);
 	return 0;
 }
 
@@ -168,28 +171,13 @@ int execute(char **args) {
 		}
 	}
 	return p_forker(args);
-	/*
-	//command: exit
-	if(strcmp(args[0], "exit") == 0) {
-		(*main_func[2])(args);
-	//command: pwd
-	} else if(strcmp(args[0], "pwd") == 0) {
-		char temp[PATH_MAX + 1];
-		char *cwd;
-		cwd = getcwd(temp, 1024);
-		printf("%s\n", cwd);
-	} else if(strcmp(args[0], "cd") == 0) {
-		(*main_func[0])(args);
-	} else if(strcmp(args[0], "clr") == 0) {
-		system("clear");
-	//default command
-	} else {
-		printf("Command not found\n");
-	}
-	*/
-	return 0;
 }
 
+/*
+Arguments: pointer to char pointer, aka array of argument strings
+Return: status integer
+Function will be accessed when args[0] is cd, args[1] should be commands or filepath
+*/
 int cd_func(char **args) {
 	if (args[1] == NULL) 
 	{
@@ -203,6 +191,11 @@ int cd_func(char **args) {
 	return 1;
 }
 
+/*
+Arguments: pointer to char pointer
+Return: status integer
+Function will be accessed with help command and return information about the myshell program
+*/
 int help_func(char **args) {
 	int i;
 	printf("\n\nThis is Daniel Yeh's MyShell\n");
@@ -216,13 +209,18 @@ int help_func(char **args) {
 	return 1;
 }
 
+/*
+Arguments: pointer to char pointer (unused)
+Return: status integer;
+Function will be accessed with exit command and will exit the program
+*/
 int exit_func(char **args) {
-	exit(0);
+//	exit(0);
 	return 0;
 }
 
 int p_forker(char **args) {
-	return 0;
+	return 1;
 }
 
 
