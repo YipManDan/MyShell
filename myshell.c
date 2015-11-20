@@ -4,7 +4,8 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <limits.h>
-#include <ncurses.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #define BUFFERSIZE 1024
 #define BUFFERSIZE2 64
 
@@ -42,10 +43,15 @@ int main() {
 	//char string[30];
 	char *string;
 	char **arguments;
+	char temp[PATH_MAX + 1];
+	char *cwd;
 	char c;
 	int i;
-	printf("Hello World!\n");
+	cwd = getcwd(temp, 1024);
+	printf("shell=<%s>/myshell\n", cwd);
 	do {
+		cwd = getcwd(temp, 1024);
+		printf("myshell: %s", cwd);
 		printf(">");
 		string = get_line();
 		arguments = split_line(string);
@@ -220,8 +226,34 @@ int exit_func(char **args) {
 }
 
 int p_forker(char **args) {
+	pid_t pid, wpid;
+	int status;
+
+	pid=fork();
+	if (pid == 0)
+	{
+		if(execvp(args[0], args) == -1)
+		{
+			perror("myshell");
+		}
+		exit(EXIT_FAILURE);
+	} else if(pid < 0) {
+		perror("myshell");
+
+	} else {
+		do 
+		{
+			wpid = waitpid(pid, &status, WUNTRACED);
+		} while(!WIFEXITED(status) && !WIFSIGNALED(status));
+	}
+
 	return 1;
 }
 
-
-
+/*
+if(strcmp(args[0], "pwd") == 0) {
+	char temp[PATH_MAX + 1];
+	char *cwd;
+	cwd = getcwd(temp, 1024);
+	printf("%s\n", cwd);
+*/
