@@ -21,6 +21,7 @@ int clr_func(char **);
 int exit_func(char **);
 
 int arg_count;
+bool background = false;
 
 //Array of functions to be executed by main process
 char *main_str[] = {
@@ -171,13 +172,17 @@ Function will execute arguments
 
 int execute(char **args) {
 	int i = 0;
-	bool background = false;
+	background = false;
 	//While loop displays arguments for testing purposes
 	printf("Number of args: %d\n", arg_count);
 	if(strcmp(args[arg_count-1], "&")==0)
 		background = true;
 	if(background)
+	{
 		printf("Running command in background\n");
+		free(args[arg_count-1]);
+		args[arg_count-1]=NULL;
+	}
 	else
 		printf("Running command in foreground\n");
 	
@@ -274,6 +279,8 @@ int p_forker(char **args) {
 		perror("myshell");
 
 	} else {
+		if(background)
+			return 1;
 		do 
 		{
 			wpid = waitpid(pid, &status, WUNTRACED);
