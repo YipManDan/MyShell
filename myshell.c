@@ -24,6 +24,7 @@ int exit_func(char **);
 
 int arg_count;
 bool background = false;
+FILE *envfile;
 
 //Array of functions to be executed by main process
 char *main_str[] = {
@@ -60,6 +61,7 @@ int main() {
 	char *cwd;
 	char c;
 	int i;
+	envfile = tmpfile();
 	set_environ();
 	do {
 		cwd = getcwd(temp, 1024);
@@ -86,17 +88,27 @@ void set_environ()
 	FILE *file, *tempfile;
 	fpos_t pos;
 	int i;
-	char *filename = "environ.txt";
+	char tempname[40];
+	char pre[50];
+	int filedes;
+
+	strcpy(tempname, "environXXXXXX");
+	filedes = mkstemp(tempname);
+	
+	printf("The temp name is: %s\n", tempname);
 	cwd = getcwd(temp, 1024);
+
+	strcpy(pre, "printenv > ");
+
 	//Prints env details to a file
-	system("printenv > environ.txt");
+	system(strcat(pre, tempname));
 	
 	//Opens the local temp file and a temp file
-	file = fopen(filename, "r");
-	tempfile = fopen("temp_environ", "w");
+	file = fdopen(filedes, "r");
+	//tempfile = fopen("temp_environ", "w");
 	
 	//Checks to ensure that both files are opened correctly
-	if(file == NULL || tempfile == NULL)
+	if(file == NULL || envfile == NULL)
 	{
 		printf("error: unable to open file");
 		exit(1);
@@ -111,19 +123,20 @@ void set_environ()
 		if(strstr(line, delete_line)!=NULL)
 		{
 			printf("###string \"SHELL=\" found. Deleting...\n");
-			fprintf(tempfile, "SHELL=%s/myshell\n", cwd);
+			fprintf(envfile, "SHELL=%s/myshell\n", cwd);
 		}
 		else
-			fprintf(tempfile, "%s", line);
+			fprintf(envfile, "%s", line);
 	}
 
 	//Both files are closed
 	fclose(file);
-	fclose(tempfile);
+	//fclose(tempfile);
 
 	//local temp file is erased, then temp file is renamed
-	remove(filename);
-	rename("temp_environ", filename);
+	remove(tempname);
+	//rename("temp_environ", tempname);
+	//__fpurge(stdin);
 	return;
 }
 
@@ -313,7 +326,13 @@ int clr_func(char **args) {
 }
 
 int environ_func(char **args) {
-	system("cat environ.txt | more");
+	char line[1024];
+	rewind(envfile);
+	//system("cat environ.txt | more");
+	while(fgets(line, sizeof(line), envfile))
+	{
+		printf("%s", line);
+	}
 	return 1;
 }
 
@@ -325,6 +344,7 @@ Function will be accessed with exit command and will exit the program
 int exit_func(char **args) {
 //	exit(0);
 	printf("Thank you for using this shell. Good bye!\n");
+	fclose(envfile);
 	return 0;
 }
 
