@@ -174,20 +174,20 @@ int execute(char **args) {
 	int i = 0;
 	background = false;
 	//While loop displays arguments for testing purposes
-	printf("Number of args: %d\n", arg_count);
+	printf("###Number of args: %d\n", arg_count);
 	if(strcmp(args[arg_count-1], "&")==0)
 		background = true;
 	if(background)
 	{
-		printf("Running command in background\n");
+		printf("###Running command in background\n");
 		free(args[arg_count-1]);
 		args[arg_count-1]=NULL;
 	}
 	else
-		printf("Running command in foreground\n");
+		printf("###Running command in foreground\n");
 	
 	while(args[i] != NULL) {
-		printf("Arg #%i: %s\n", i, args[i]);
+		printf("###Arg #%i: %s\n", i, args[i]);
 		i++;
 	}
 	//check to see if args is empty
@@ -201,8 +201,7 @@ int execute(char **args) {
 		}
 	}
 	return p_forker(args);
-}
-
+} 
 /*
 Arguments: pointer to char pointer, aka array of argument strings
 Return: status integer
@@ -236,7 +235,14 @@ int help_func(char **args) {
 		printf("%s\n", main_str[i]);
 	}
 	printf("\nThe command \"clr\" is not portable and is usable only on unix based systems");
-	printf("\nUse the man command for information regarding the other commands\n\n");
+
+	if(arg_count > 1)
+	{
+		strcpy(args[0], "man");
+		p_forker(args);
+	}
+
+	printf("\nUse the help command with arguments for more information regarding the commands\n\n");
 	return 1;
 }
 
