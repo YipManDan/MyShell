@@ -9,6 +9,7 @@
 #define BUFFERSIZE 1024
 #define BUFFERSIZE2 64
 
+void set_environ(void);
 char *get_line(void);
 char **split_line(char *);
 int execute(char **);
@@ -18,6 +19,7 @@ int cd_func(char **);
 int help_func(char **);
 int pause_func(char **);
 int clr_func(char **);
+int environ_func(char **);
 int exit_func(char **);
 
 int arg_count;
@@ -29,6 +31,7 @@ char *main_str[] = {
 		"help", 
 		"pause", 
 		"clr",
+		"environ",
 		"exit"
 };
 
@@ -39,6 +42,7 @@ int (*main_func[])(char **) =
 	&help_func,
 	&pause_func,
 	&clr_func,
+	&environ_func,
 	&exit_func
 };
 
@@ -56,8 +60,7 @@ int main() {
 	char *cwd;
 	char c;
 	int i;
-	cwd = getcwd(temp, 1024);
-	printf("shell=<%s>/myshell\n", cwd);
+	set_environ();
 	do {
 		cwd = getcwd(temp, 1024);
 		printf("myshell: %s", cwd);
@@ -70,6 +73,58 @@ int main() {
 		free(arguments);
 	} while(i);
 	return 0;
+}
+
+/*
+   Function creates an environment file which contains the information printed by the system command "printenv". In the file, the shell address is replaced with the location of this myshell program.
+   */
+void set_environ()
+{
+	char temp[PATH_MAX + 1];
+	char *cwd, line[1024];
+	char *delete_line = "SHELL="; //part of the line that will be erased
+	FILE *file, *tempfile;
+	fpos_t pos;
+	int i;
+	char *filename = "environ.txt";
+	cwd = getcwd(temp, 1024);
+	//Prints env details to a file
+	system("printenv > environ.txt");
+	
+	//Opens the local temp file and a temp file
+	file = fopen(filename, "r");
+	tempfile = fopen("temp_environ", "w");
+	
+	//Checks to ensure that both files are opened correctly
+	if(file == NULL || tempfile == NULL)
+	{
+		printf("error: unable to open file");
+		exit(1);
+	}
+
+	printf("###finding the string \"%s\"\n", delete_line);
+	/*
+	   This loop will loop through the file with the env information and print all lines to a second temp file. All lines except the shell path which is replaced with the path of this program
+	   */
+	while(fgets(line, sizeof(line), file))
+	{
+		if(strstr(line, delete_line)!=NULL)
+		{
+			printf("###string \"SHELL=\" found. Deleting...\n");
+			fprintf(tempfile, "SHELL=%s/myshell\n", cwd);
+		}
+		else
+			fprintf(tempfile, "%s", line);
+	}
+
+	//Both files are closed
+	fclose(file);
+	fclose(tempfile);
+
+	//local temp file is erased, then temp file is renamed
+	remove(filename);
+	rename("temp_environ", filename);
+	return;
 }
 
 char *get_line() {
@@ -254,6 +309,11 @@ int pause_func(char **args) {
 
 int clr_func(char **args) {
 	system("clear");
+	return 1;
+}
+
+int environ_func(char **args) {
+	system("cat environ.txt | more");
 	return 1;
 }
 
