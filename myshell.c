@@ -16,12 +16,18 @@ int p_forker(char **);
 
 int cd_func(char **);
 int help_func(char **);
+int pause_func(char **);
+int clr_func(char **);
 int exit_func(char **);
+
+int arg_count;
 
 //Array of functions to be executed by main process
 char *main_str[] = {
 		"cd", 
 		"help", 
+		"pause", 
+		"clr",
 		"exit"
 };
 
@@ -30,6 +36,8 @@ int (*main_func[])(char **) =
 {
 	&cd_func,
 	&help_func,
+	&pause_func,
+	&clr_func,
 	&exit_func
 };
 
@@ -106,7 +114,8 @@ char **split_line(char *string) {
 	char **args = malloc(sizeofbuf * sizeof(char*));
 	char *arg;
 	char c;
-	int i, j, k; if(args == NULL) {
+	int i, j, k; 
+	if(args == NULL) {
 		printf("split_line: allocation error");
 		exit(1);
 	}
@@ -140,6 +149,7 @@ char **split_line(char *string) {
 		i++;
 		if(c == '\0') {
 			args[i] = NULL;
+			arg_count = i;
 			return args;
 		}
 		if (i >= sizeofbuf) {
@@ -161,7 +171,16 @@ Function will execute arguments
 
 int execute(char **args) {
 	int i = 0;
+	bool background = false;
 	//While loop displays arguments for testing purposes
+	printf("Number of args: %d\n", arg_count);
+	if(strcmp(args[arg_count-1], "&")==0)
+		background = true;
+	if(background)
+		printf("Running command in background\n");
+	else
+		printf("Running command in foreground\n");
+	
 	while(args[i] != NULL) {
 		printf("Arg #%i: %s\n", i, args[i]);
 		i++;
@@ -211,7 +230,19 @@ int help_func(char **args) {
 	{
 		printf("%s\n", main_str[i]);
 	}
+	printf("\nThe command \"clr\" is not portable and is usable only on unix based systems");
 	printf("\nUse the man command for information regarding the other commands\n\n");
+	return 1;
+}
+
+int pause_func(char **args) {
+	getchar();
+	//pause();
+	return 1;
+}
+
+int clr_func(char **args) {
+	system("clear");
 	return 1;
 }
 
@@ -222,8 +253,10 @@ Function will be accessed with exit command and will exit the program
 */
 int exit_func(char **args) {
 //	exit(0);
+	printf("Thank you for using this shell. Good bye!\n");
 	return 0;
 }
+
 
 int p_forker(char **args) {
 	pid_t pid, wpid;
@@ -250,10 +283,3 @@ int p_forker(char **args) {
 	return 1;
 }
 
-/*
-if(strcmp(args[0], "pwd") == 0) {
-	char temp[PATH_MAX + 1];
-	char *cwd;
-	cwd = getcwd(temp, 1024);
-	printf("%s\n", cwd);
-*/
