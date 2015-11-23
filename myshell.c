@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <limits.h>
-#include <sys/types.h>
-#include <sys/wait.h>
+//#include <sys/types.h>
+//#include <sys/wait.h>
 #define BUFFERSIZE 1024
 #define BUFFERSIZE2 64
 
@@ -24,6 +24,9 @@ int exit_func(char **);
 
 int arg_count;
 bool background = false;
+bool has_pipe = false;
+bool new_out = false;
+bool new_in = false;
 FILE *envfile;
 
 //Array of functions to be executed by main process
@@ -184,6 +187,9 @@ char **split_line(char *string) {
 	char *arg;
 	char c;
 	int i, j, k; 
+	has_pipe = false;
+	new_out = false;
+	new_in = false;
 	if(args == NULL) {
 		printf("split_line: allocation error");
 		exit(1);
@@ -216,6 +222,15 @@ char **split_line(char *string) {
 		}
 		args[i] = arg;
 		i++;
+		//Checks for pipe, file output, or file input
+		if(strcmp(arg, "|")==0)
+			has_pipe = true;
+		else if (strcmp(arg, ">") == 0)
+			new_out = true;
+		else if(strcmp(arg, "<") == 0)
+			new_in = true;
+
+		//Checks for null character
 		if(c == '\0') {
 			args[i] = NULL;
 			arg_count = i;
@@ -315,8 +330,8 @@ int help_func(char **args) {
 }
 
 int pause_func(char **args) {
-	getchar();
-	//pause();
+	int x;
+	while(x = getchar() != EOF && getchar() != '\n');
 	return 1;
 }
 
