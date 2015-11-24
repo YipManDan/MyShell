@@ -11,7 +11,8 @@
 
 void set_environ(void);
 char *get_line(void);
-char **split_line(char *);
+char **split_line(char *, bool *);
+FILE *new_stream(char **, bool *);
 int execute(char **);
 int p_forker(char **);
 
@@ -22,6 +23,7 @@ int clr_func(char **);
 int environ_func(char **);
 int exit_func(char **);
 
+//Global variables
 int arg_count;
 bool background = false;
 bool has_pipe = false;
@@ -63,17 +65,31 @@ int main() {
 	char temp[PATH_MAX + 1];
 	char *cwd;
 	char c;
-	int i;
+	FILE *fp;
+	bool error;
+	bool iop;
+	int i = 1;
 	envfile = tmpfile();
 	set_environ();
 	do {
+		error = false;
+		iop = false;
 		cwd = getcwd(temp, 1024);
 		printf("myshell: %s", cwd);
 		printf(">");
 		string = get_line();
-		arguments = split_line(string);
-		i = execute(arguments);
-
+		arguments = split_line(string, &iop);
+		if(iop)
+		{
+			fp = new_stream(arguments, &error);
+		}
+		if(!error)
+			i = execute(arguments);
+		if(iop && fp != NULL)
+		{
+			fclose(fp);
+			freopen("/dev/tty", "a", stdout);
+		}
 		free(string);
 		free(arguments);
 	} while(i);
@@ -86,14 +102,12 @@ int main() {
 void set_environ()
 {
 	char temp[PATH_MAX + 1];
-	char *cwd, line[1024];
+	char *cwd, line[BUFFERSIZE];
 	char *delete_line = "SHELL="; //part of the line that will be erased
-	FILE *file, *tempfile;
-	fpos_t pos;
-	int i;
-	char tempname[40];
-	char pre[50];
+	FILE *file;
 	int filedes;
+	char tempname[BUFFERSIZE2];
+	char pre[BUFFERSIZE2];
 
 	strcpy(tempname, "environXXXXXX");
 	filedes = mkstemp(tempname);
@@ -180,8 +194,8 @@ return: pointers to char pointers aka array of argument string
 Function will parse inputted string into separate arguments (delimted by: spaces, tabs)
    */
 
-char **split_line(char *string) {
-	int sizeofbuf = 64;
+char **split_line(char *string, bool *iop) {
+	int sizeofbuf = BUFFERSIZE2;
 	int sizeofarg;
 	char **args = malloc(sizeofbuf * sizeof(char*));
 	char *arg;
@@ -224,11 +238,14 @@ char **split_line(char *string) {
 		i++;
 		//Checks for pipe, file output, or file input
 		if(strcmp(arg, "|")==0)
-			has_pipe = true;
+			*iop = true;
+			//has_pipe = true;
 		else if (strcmp(arg, ">") == 0)
-			new_out = true;
+			*iop = true;
+			//new_out = true;
 		else if(strcmp(arg, "<") == 0)
-			new_in = true;
+			*iop = true;
+			//new_in = true;
 
 		//Checks for null character
 		if(c == '\0') {
@@ -245,6 +262,53 @@ char **split_line(char *string) {
 			}
 		}
 	}
+}
+
+FILE *new_stream(char **args, bool *error) {
+	int i = 0;
+	FILE *fp = NULL;
+	while(args[i+1] != NULL) {
+		if(strcmp(args[i], ">")==0)
+		{
+			printf("Redirecting stdout to %s\n", args[i+1]);
+			char *s;
+			fp = freopen(args[i+1], "w", stdout);
+			if(fp == NULL)
+			{
+				printf("Error: Unable to change stdout\n");
+				*error = true;
+				return NULL;
+			}
+			//free(args[i]);
+			//free(args[i+1]);
+			//args[i] = NULL;
+			//args[i+1] = NULL;
+			//arg_count--;
+			//arg_count--;
+
+			do
+			{
+				//strcpy(args[i], args[i+2]);
+				args[i] = args[i+2];
+				arg_count--;
+				i++;
+			} while(args[i+2] != NULL);
+			args[i] = NULL;
+			arg_count--;
+			//args[i+1] = NULL;
+			//args[i] = NULL;
+			return fp;
+		}
+		else if(strcmp(args[i], "<") ==0)
+		{
+			fp = freopen(args[i-1], "r", stdin);
+			return fp;
+		}
+		i++;
+	}
+	printf("myshell: syntax error near unexpected token 'newline'\n");
+	*error = true;
+	return NULL;
 }
 
 /*
@@ -329,17 +393,20 @@ int help_func(char **args) {
 	return 1;
 }
 
+//Function pauses until newline or EOF is inputted
 int pause_func(char **args) {
 	int x;
 	while(x = getchar() != EOF && getchar() != '\n');
 	return 1;
 }
 
+//function calls system call clear
 int clr_func(char **args) {
 	system("clear");
 	return 1;
 }
 
+//Function prints out the temporary file containing the environment details
 int environ_func(char **args) {
 	char line[1024];
 	rewind(envfile);
@@ -363,7 +430,11 @@ int exit_func(char **args) {
 	return 0;
 }
 
-
+/*
+Arguments: pointer to char pointer
+Return: status integer
+Function forks process. For child process execvp is called with args[0]. The parent process will wait until child process exits unless the background bool is set.
+*/
 int p_forker(char **args) {
 	pid_t pid, wpid;
 	int status;
