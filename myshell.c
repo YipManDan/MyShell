@@ -4,15 +4,14 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <limits.h>
-//#include <sys/types.h>
-//#include <sys/wait.h>
 #define BUFFERSIZE 1024
 #define BUFFERSIZE2 64
 
 void set_environ(void);
 char *get_line(void);
-char **split_line(char *, bool *);
-FILE *new_stream(char **, bool *);
+char **split_line(char *);
+FILE *new_output(char **, bool *);
+FILE *new_input(char **, bool *);
 int execute(char **);
 int p_forker(char **);
 
@@ -65,31 +64,24 @@ int main() {
 	char temp[PATH_MAX + 1];
 	char *cwd;
 	char c;
-	FILE *fp;
+	FILE *fp1, *fp2;
 	bool error;
-	bool iop;
+	bool in, out, pipe; 
 	int i = 1;
 	envfile = tmpfile();
 	set_environ();
 	do {
 		error = false;
-		iop = false;
+		new_out = false;
+		new_in = false;
+		has_pipe = false;
 		cwd = getcwd(temp, 1024);
 		printf("myshell: %s", cwd);
 		printf(">");
 		string = get_line();
-		arguments = split_line(string, &iop);
-		if(iop)
-		{
-			fp = new_stream(arguments, &error);
-		}
+		arguments = split_line(string);
 		if(!error)
 			i = execute(arguments);
-		if(iop && fp != NULL)
-		{
-			fclose(fp);
-			freopen("/dev/tty", "a", stdout);
-		}
 		free(string);
 		free(arguments);
 	} while(i);
@@ -194,7 +186,7 @@ return: pointers to char pointers aka array of argument string
 Function will parse inputted string into separate arguments (delimted by: spaces, tabs)
    */
 
-char **split_line(char *string, bool *iop) {
+char **split_line(char *string) {
 	int sizeofbuf = BUFFERSIZE2;
 	int sizeofarg;
 	char **args = malloc(sizeofbuf * sizeof(char*));
@@ -205,9 +197,7 @@ char **split_line(char *string, bool *iop) {
 	new_out = false;
 	new_in = false;
 	if(args == NULL) {
-		printf("split_line: allocation error");
-		exit(1);
-	}
+		printf("split_line: allocation error"); exit(1); }
 	i = 0;
 	j = -1;
 	k = 0;
@@ -238,14 +228,11 @@ char **split_line(char *string, bool *iop) {
 		i++;
 		//Checks for pipe, file output, or file input
 		if(strcmp(arg, "|")==0)
-			*iop = true;
-			//has_pipe = true;
+			has_pipe = true;
 		else if (strcmp(arg, ">") == 0)
-			*iop = true;
-			//new_out = true;
+			new_out= true;
 		else if(strcmp(arg, "<") == 0)
-			*iop = true;
-			//new_in = true;
+			new_in= true;
 
 		//Checks for null character
 		if(c == '\0') {
@@ -264,14 +251,13 @@ char **split_line(char *string, bool *iop) {
 	}
 }
 
-FILE *new_stream(char **args, bool *error) {
-	int i = 0;
+FILE *new_output(char **args, bool *error) {
+	int i = 0, j;
 	FILE *fp = NULL;
 	while(args[i+1] != NULL) {
 		if(strcmp(args[i], ">")==0)
 		{
-			printf("Redirecting stdout to %s\n", args[i+1]);
-			char *s;
+			printf("Output found!\n");
 			fp = freopen(args[i+1], "w", stdout);
 			if(fp == NULL)
 			{
@@ -279,29 +265,46 @@ FILE *new_stream(char **args, bool *error) {
 				*error = true;
 				return NULL;
 			}
-			//free(args[i]);
-			//free(args[i+1]);
-			//args[i] = NULL;
-			//args[i+1] = NULL;
-			//arg_count--;
-			//arg_count--;
-
 			do
 			{
-				//strcpy(args[i], args[i+2]);
 				args[i] = args[i+2];
-				arg_count--;
 				i++;
 			} while(args[i+2] != NULL);
 			args[i] = NULL;
 			arg_count--;
-			//args[i+1] = NULL;
-			//args[i] = NULL;
+			arg_count--;
 			return fp;
 		}
-		else if(strcmp(args[i], "<") ==0)
+		i++;
+	}
+	printf("myshell: syntax error near unexpected token 'newline'\n");
+	*error = true;
+	return NULL;
+}
+
+
+FILE *new_input(char **args, bool *error) {
+	int i = 0, j;
+	FILE *fp = NULL;
+	while(args[i+1] != NULL) {
+		if(strcmp(args[i], "<") ==0)
 		{
-			fp = freopen(args[i-1], "r", stdin);
+			printf("input found!\n");
+			fp = freopen(args[i+1], "r", stdin);
+			if(fp == NULL)
+			{
+				printf("Error: Unable to change stdin\n");
+				*error = true;
+				return NULL;
+			}
+			do
+			{
+				args[i] = args[i+2];
+				i++;
+			} while(args[i+2] != NULL);
+			args[i] = NULL;
+			arg_count--;
+			arg_count--;
 			return fp;
 		}
 		i++;
@@ -342,7 +345,7 @@ int execute(char **args) {
 		return 1;
 	for(i=0; i<num_main_func(); i++)
 	{
-		if(strcmp(main_str[i], args[0])==0)
+		if(strcmp(main_str[i], args[0])==0 && i != 1 && i != 4)
 		{
 			return (*main_func[i])(args);
 		}
@@ -437,11 +440,58 @@ Function forks process. For child process execvp is called with args[0]. The par
 */
 int p_forker(char **args) {
 	pid_t pid, wpid;
-	int status;
-
+	int status, i;
+	bool flag = false;
+	FILE *fp1 = NULL, *fp2 = NULL;
+	bool error = false;
+	if(args[0] == NULL)
+		return 1;
 	pid=fork();
+
+
 	if (pid == 0)
 	{
+		if(new_out)
+		{
+			fp1= new_output(args, &error);
+			printf("out good\n");
+		}
+		if(new_in)
+		{
+			fp2= new_input(args, &error);
+			printf("in good\n");
+		}
+		if(error)
+		{
+			printf("myshell: rerouting error\n");
+			exit(1);
+		}
+		for(i=0; i<num_main_func(); i++)
+		{
+			if(strcmp(main_str[i], args[0])==0)
+			{
+				status = (*main_func[i])(args);
+				if(new_in || new_out)
+				{
+					if(fp1 != NULL)
+					{
+						fclose(fp1);
+						fp1 = NULL;
+					}
+					if(fp2 != NULL)
+					{
+						fclose(fp2);
+						fp2 = NULL;
+					}
+				}
+				flag = true;
+				break;
+			}
+		}
+		if(flag)
+		{
+			exit(status);
+		}
 		if(execvp(args[0], args) == -1)
 		{
 			perror("myshell");
