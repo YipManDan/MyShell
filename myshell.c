@@ -7,16 +7,18 @@
 #define BUFFERSIZE 1024
 #define BUFFERSIZE2 64
 
+//prototype shell functions
 void set_environ(void);
 char *get_line(void);
 char **split_line(char *);
 FILE *new_output(char **, bool *);
 FILE *new_input(char **, bool *);
 int execute(char **);
-int p_forker(char **, bool);
+int p_forker(char **);
 int p_forker_pipe(char **, char **);
 void split_pipe(char **, char **);
 
+//prototype for built-in functions
 int cd_func(char **);
 int help_func(char **);
 int pause_func(char **);
@@ -60,20 +62,14 @@ int num_main_func()
 }
 
 int main() {
-	//char string[30];
 	char *string;
 	char **arguments;
 	char temp[PATH_MAX + 1];
 	char *cwd;
-	char c;
-	FILE *fp1, *fp2;
-	bool error;
-	bool in, out, pipe; 
 	int i = 1;
 	envfile = tmpfile();
 	set_environ();
 	do {
-		error = false;
 		new_out = false;
 		new_in = false;
 		has_pipe = false;
@@ -82,8 +78,7 @@ int main() {
 		printf(">");
 		string = get_line();
 		arguments = split_line(string);
-		if(!error)
-			i = execute(arguments);
+		i = execute(arguments);
 		free(string);
 		free(arguments);
 	} while(i);
@@ -144,6 +139,10 @@ void set_environ()
 	return;
 }
 
+/*
+Output: string
+Function gets string from user containing arguments until a newline or end of file is found
+*/
 char *get_line() {
 	int sizeofbuf = BUFFERSIZE;
 	char *buffer = malloc(sizeof(char) * sizeofbuf);
@@ -156,7 +155,7 @@ char *get_line() {
 	}
 	while(true) {
 		c = getchar();
-
+		//String terminates with newline or EOF
 		if(c == EOF || c == '\n') {
 			buffer[i] = '\0';
 			return buffer;
@@ -164,6 +163,7 @@ char *get_line() {
 			buffer[i] = c;
 		}
 		i++;
+		//if buffer exceeds expected size, increase buffer size
 		if(i >= sizeofbuf) {
 			sizeofbuf = 2*sizeofbuf;
 			buffer = realloc(buffer, sizeofbuf);
@@ -197,6 +197,7 @@ char **split_line(char *string) {
 	i = 0;
 	j = -1;
 	k = 0;
+	//deliminate input string
 	while(true) {
 		c = string[++j];
 		k = 0;
@@ -206,6 +207,7 @@ char **split_line(char *string) {
 			printf("split_line arg: allocation error");
 			exit(1);
 		}
+		//copy each char into arg until space, tab, or newline found
 		while(c != ' ' && c != '\0' && c != '\t') {
 			arg[k] = c;
 			k++;
@@ -234,6 +236,7 @@ char **split_line(char *string) {
 
 		//Checks for null character
 		if(c == '\0') {
+			//if help flag is set, automatically add pipe to more filter
 			if(help)
 			{
 				has_pipe = true;
@@ -259,6 +262,8 @@ char **split_line(char *string) {
 			arg_count = i;
 			return args;
 		}
+
+		//if input exceeds expected size, resize args to accomadate
 		if (i >= sizeofbuf) {
 			sizeofbuf = sizeofbuf*2;
 			args = realloc(args, sizeofbuf);
@@ -270,19 +275,29 @@ char **split_line(char *string) {
 	}
 }
 
+/*
+Input: string array and boolean
+Output: file pointer
+Function redirects the output of the current process to the file found after ">".
+If there is an error then the error flag is set
+*/
 FILE *new_output(char **args, bool *error) {
 	int i = 0, j;
 	FILE *fp = NULL;
 	while(args[i+1] != NULL) {
 		if(strcmp(args[i], ">")==0)
 		{
+			//freopen will set args[i+1] as the new stdout
 			fp = freopen(args[i+1], "w", stdout);
+
+			//check for error
 			if(fp == NULL)
 			{
 				printf("Error: Unable to change stdout\n");
 				*error = true;
 				return NULL;
 			}
+			//do-while loop will remove the ">" string and the filename
 			do
 			{
 				args[i] = args[i+2];
@@ -300,20 +315,30 @@ FILE *new_output(char **args, bool *error) {
 	return NULL;
 }
 
-
+/*
+Input: string array and boolean
+Output: file pointer
+Function redirects the input of the current process to the file found after "<".
+If there is an error then the error flag is set
+*/
 FILE *new_input(char **args, bool *error) {
 	int i = 0, j;
 	FILE *fp = NULL;
 	while(args[i+1] != NULL) {
 		if(strcmp(args[i], "<") ==0)
 		{
+			//freopen will set args[i+1] as the new stdin
 			fp = freopen(args[i+1], "r", stdin);
+
+			//check for error
 			if(fp == NULL)
 			{
 				printf("Error: Unable to change stdin\n");
 				*error = true;
 				return NULL;
 			}
+
+			//do-while loop will remove the "<" string and the filename
 			do
 			{
 				args[i] = args[i+2];
@@ -340,7 +365,6 @@ Function will execute arguments
 int execute(char **args) {
 	int i = 0;
 	background = false;
-	//While loop displays arguments for testing purposes
 	if(strcmp(args[arg_count-1], "&")==0)
 		background = true;
 	if(background)
@@ -359,6 +383,7 @@ int execute(char **args) {
 	i = arg_count;
 	if(i==0)
 		return 1;
+	//Searches for built-in functions and exectues. Except for help and environ
 	for(i=0; i<num_main_func(); i++)
 	{
 		if(strcmp(main_str[i], args[0])==0 && i != 1 && i != 4)
@@ -366,7 +391,8 @@ int execute(char **args) {
 			return (*main_func[i])(args);
 		}
 	}
-	return p_forker(args, false);
+	//calls function to fork process
+	return p_forker(args);
 } 
 /*
 Arguments: pointer to char pointer, aka array of argument strings
@@ -456,46 +482,56 @@ Arguments: pointer to char pointer
 Return: status integer
 Function forks process. For child process execvp is called with args[0]. The parent process will wait until child process exits unless the background bool is set.
 */
-int p_forker(char **args, bool is_pipe) {
+int p_forker(char **args) {
 	pid_t pid, wpid;
-	int pipefd[2];
-	const int PIPE_READ = 0;
-	const int PIPE_WRITE = 1;
 	char **args2;
 	int status, i;
 	int sizeofbuf = BUFFERSIZE2;
 	bool flag = false;
-	bool flag2 = false;
 	FILE *fp1 = NULL, *fp2 = NULL;
 	bool error = false;
+
+	//Check to ensure that there are arguments
 	if(args[0] == NULL)
 		return 1;
-	if(has_pipe && !is_pipe)
+
+	//Checks to see if pipe flag has been set
+	if(has_pipe)
 	{
+		//splits args into args and args2 delimiting over "|"
 		args2 = malloc(sizeofbuf * sizeof(char));
 		split_pipe(args, args2);
+
+		//calls function to fork and pipe
 		return p_forker_pipe(args, args2);
 	}
-	pid=fork();
 
+	//forks process
+	pid=fork();
 
 	if (pid == 0)	//child process
 	{
+		//if new output specified, call new_output function
 		if(new_out)
 			fp1= new_output(args, &error);
+		//if new input specified, call new_input function
 		if(new_in)
 			fp2= new_input(args, &error);
+		//checks error from new_output and new_input
 		if(error)
 		{
 			printf("myshell: rerouting error\n");
 			exit(1);
 		}
-
+		
+		//loops through built-in functions
 		for(i=0; i<num_main_func(); i++)
 		{
 			if(strcmp(main_str[i], args[0])==0)
 			{
 				status = (*main_func[i])(args);
+
+				//determines if there are file streams to close
 				if(new_in || new_out)
 				{
 					if(fp1 != NULL)
@@ -503,16 +539,11 @@ int p_forker(char **args, bool is_pipe) {
 					if(fp2 != NULL)
 						fclose(fp2);
 				}
-				flag = true;
-				break;
+				exit(status);
 			}
 		}
-
-		if(flag)
-		{
-			exit(status);
-		}
-
+		
+		//if command found then replaces current process
 		if(execvp(args[0], args) == -1)
 		{
 			perror("myshell");
@@ -521,6 +552,7 @@ int p_forker(char **args, bool is_pipe) {
 	} else if(pid < 0) {
 		perror("myshell");
 	} else {
+		//if background flag set then process run in background
 		if(background)
 			return 1;
 		do 
@@ -548,7 +580,6 @@ int p_forker_pipe(char **args, char **args2)
 	int i;
 	int status;
 	bool flag = false;
-
 	
 	//creates pipe with ends of pipe stored in pipefd
 	pipe(pipefd);
@@ -583,30 +614,29 @@ int p_forker_pipe(char **args, char **args2)
 
 	//create second fork, receiving process
 	pid2 = fork();
-	if(pid2 == 0)
+	if(pid2 == 0)	//if child process
 	{
+		//Copy pipe output into stdin file descriptor
 		dup2(pipefd[0], STDIN_FILENO);
 		close(pipefd[1]);
+
+		//Search for built-in functions
 		for(i=0; i<num_main_func(); i++)
 		{
 			if(strcmp(main_str[i], args2[0])==0)
 			{
 				status = (*main_func[i])(args2);
-				flag = true;
-				break;
+				exit(status);
 			}
 		}
-		if(flag)
-		{
-			exit(status);
-		}
 
+		//If command found then change process into command process
 		if(execvp(args2[0], args2) == -1)
 		{
 			perror("myshell");
 		}
 		exit(EXIT_FAILURE);
-	} else if(pid2 < 0) 
+	} else if(pid2 < 0) 	//pid2 is less than 0 if an error has occured
 		perror("myshell");
 
 	//close ends of pipe in main process
@@ -616,18 +646,19 @@ int p_forker_pipe(char **args, char **args2)
 	//wait on child processes
 	if(pid1 > 0 && pid2 > 0)
 	{
-		//waitpid(pid1);
-		//waitpid(pid2);
 		do 
 		{
 			wpid1 = waitpid(pid1, &status, WUNTRACED);
 			wpid2 = waitpid(pid2, &status2, WUNTRACED);
 		} while(!WIFEXITED(status) && !WIFSIGNALED(status) && !WIFEXITED(status2) && !WIFSIGNALED(status2));
 	}
+
+	//waitpid returns -1 if an error occurs
 	if(wpid1==-1)
 		perror("myshell: process wait error");
 	if(wpid2==-1)
 		perror("myshell: process wait error");
+
 	return 1;
 }
 
@@ -641,6 +672,10 @@ void split_pipe(char **args, char **args2)
 	int i=0;
 	int j=0;
 	bool flag = false;
+	/*
+	Loop through args until next element is NULL
+	Loop will copy over every element after '|' string into args and remove elements after and including the '|' string from args
+	*/
 	while(args[i+1] != NULL)
 	{
 		if(strcmp(args[i], "|") == 0)
@@ -653,8 +688,11 @@ void split_pipe(char **args, char **args2)
 		}
 		i++;
 	}
+	//End arg and args with NULL pointer
 	args2[j] = NULL;
 	args[i] = NULL;
+
+	//Pipe not found error
 	if(!flag)
 		perror("myshell: expecting a pipe");
 	return;
