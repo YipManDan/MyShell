@@ -104,7 +104,6 @@ void set_environ()
 	strcpy(tempname, "environXXXXXX");
 	filedes = mkstemp(tempname);
 	
-	printf("The temp name is: %s\n", tempname);
 	cwd = getcwd(temp, 1024);
 
 	strcpy(pre, "printenv > ");
@@ -123,7 +122,6 @@ void set_environ()
 		exit(1);
 	}
 
-	printf("###finding the string \"%s\"\n", delete_line);
 	/*
 	   This loop will loop through the file with the env information and print all lines to a second temp file. All lines except the shell path which is replaced with the path of this program
 	   */
@@ -131,7 +129,6 @@ void set_environ()
 	{
 		if(strstr(line, delete_line)!=NULL)
 		{
-			printf("###string \"SHELL=\" found. Deleting...\n");
 			fprintf(envfile, "SHELL=%s/myshell\n", cwd);
 		}
 		else
@@ -257,7 +254,6 @@ FILE *new_output(char **args, bool *error) {
 	while(args[i+1] != NULL) {
 		if(strcmp(args[i], ">")==0)
 		{
-			printf("Output found!\n");
 			fp = freopen(args[i+1], "w", stdout);
 			if(fp == NULL)
 			{
@@ -289,7 +285,6 @@ FILE *new_input(char **args, bool *error) {
 	while(args[i+1] != NULL) {
 		if(strcmp(args[i], "<") ==0)
 		{
-			printf("input found!\n");
 			fp = freopen(args[i+1], "r", stdin);
 			if(fp == NULL)
 			{
@@ -324,23 +319,23 @@ int execute(char **args) {
 	int i = 0;
 	background = false;
 	//While loop displays arguments for testing purposes
-	printf("###Number of args: %d\n", arg_count);
+	//printf("###Number of args: %d\n", arg_count);
 	if(strcmp(args[arg_count-1], "&")==0)
 		background = true;
 	if(background)
 	{
-		printf("###Running command in background\n");
 		free(args[arg_count-1]);
 		args[arg_count-1]=NULL;
 	}
-	else
-		printf("###Running command in foreground\n");
 	
+	/*
 	while(args[i] != NULL) {
 		printf("###Arg #%i: %s\n", i, args[i]);
 		i++;
 	}
+	*/
 	//check to see if args is empty
+	i = arg_count;
 	if(i==0)
 		return 1;
 	for(i=0; i<num_main_func(); i++)
@@ -440,27 +435,33 @@ Function forks process. For child process execvp is called with args[0]. The par
 */
 int p_forker(char **args) {
 	pid_t pid, wpid;
+	int pipefd[2];
 	int status, i;
 	bool flag = false;
 	FILE *fp1 = NULL, *fp2 = NULL;
 	bool error = false;
 	if(args[0] == NULL)
 		return 1;
+	/*
+	if(has_pipe)
+	{
+		if(pipe(pipefd) == -1)
+		{
+			perror("pipe error");
+			exit(EXIT_FAILURE);
+		}
+	}
+	*/
+	//pipe_split(args, args2);
 	pid=fork();
 
 
 	if (pid == 0)
 	{
 		if(new_out)
-		{
 			fp1= new_output(args, &error);
-			printf("out good\n");
-		}
 		if(new_in)
-		{
 			fp2= new_input(args, &error);
-			printf("in good\n");
-		}
 		if(error)
 		{
 			printf("myshell: rerouting error\n");
@@ -474,15 +475,9 @@ int p_forker(char **args) {
 				if(new_in || new_out)
 				{
 					if(fp1 != NULL)
-					{
 						fclose(fp1);
-						fp1 = NULL;
-					}
 					if(fp2 != NULL)
-					{
 						fclose(fp2);
-						fp2 = NULL;
-					}
 				}
 				flag = true;
 				break;
