@@ -13,7 +13,9 @@ char **split_line(char *);
 FILE *new_output(char **, bool *);
 FILE *new_input(char **, bool *);
 int execute(char **);
-int p_forker(char **);
+int p_forker(char **, bool);
+int p_forker_pipe(char **, char **);
+void split_pipe(char **, char **);
 
 int cd_func(char **);
 int help_func(char **);
@@ -113,7 +115,6 @@ void set_environ()
 	
 	//Opens the local temp file and a temp file
 	file = fdopen(filedes, "r");
-	//tempfile = fopen("temp_environ", "w");
 	
 	//Checks to ensure that both files are opened correctly
 	if(file == NULL || envfile == NULL)
@@ -137,12 +138,9 @@ void set_environ()
 
 	//Both files are closed
 	fclose(file);
-	//fclose(tempfile);
 
 	//local temp file is erased, then temp file is renamed
 	remove(tempname);
-	//rename("temp_environ", tempname);
-	//__fpurge(stdin);
 	return;
 }
 
@@ -193,6 +191,7 @@ char **split_line(char *string) {
 	has_pipe = false;
 	new_out = false;
 	new_in = false;
+	bool help = false;
 	if(args == NULL) {
 		printf("split_line: allocation error"); exit(1); }
 	i = 0;
@@ -230,9 +229,33 @@ char **split_line(char *string) {
 			new_out= true;
 		else if(strcmp(arg, "<") == 0)
 			new_in= true;
+		else if(strcmp(arg, "help") == 0)
+			help = true;
 
 		//Checks for null character
 		if(c == '\0') {
+			/*
+			if(help)
+			{
+				arg = malloc(sizeofarg*sizeof(char));
+				if(arg == NULL) {
+					printf("split_line arg: allocation error");
+					exit(1);
+				}
+				strcpy(arg, "|");
+				args[i] = arg;
+				i++;
+				arg = malloc(sizeofarg*sizeof(char));
+				if(arg == NULL) {
+					printf("split_line arg: allocation error");
+					exit(1);
+				}
+				strcpy(arg, "more");
+				args[i] = arg;
+				i++;
+			}
+			*/
+
 			args[i] = NULL;
 			arg_count = i;
 			return args;
@@ -345,7 +368,7 @@ int execute(char **args) {
 			return (*main_func[i])(args);
 		}
 	}
-	return p_forker(args);
+	return p_forker(args, false);
 } 
 /*
 Arguments: pointer to char pointer, aka array of argument strings
@@ -384,7 +407,7 @@ int help_func(char **args) {
 	if(arg_count > 1)
 	{
 		strcpy(args[0], "man");
-		p_forker(args);
+		p_forker(args, false);
 	}
 
 	printf("\nUse the help command with arguments for more information regarding the commands\n\n");
@@ -433,30 +456,30 @@ Arguments: pointer to char pointer
 Return: status integer
 Function forks process. For child process execvp is called with args[0]. The parent process will wait until child process exits unless the background bool is set.
 */
-int p_forker(char **args) {
+int p_forker(char **args, bool is_pipe) {
 	pid_t pid, wpid;
 	int pipefd[2];
+	const int PIPE_READ = 0;
+	const int PIPE_WRITE = 1;
+	char **args2;
 	int status, i;
+	int sizeofbuf = BUFFERSIZE2;
 	bool flag = false;
+	bool flag2 = false;
 	FILE *fp1 = NULL, *fp2 = NULL;
 	bool error = false;
 	if(args[0] == NULL)
 		return 1;
-	/*
-	if(has_pipe)
+	if(has_pipe && !is_pipe)
 	{
-		if(pipe(pipefd) == -1)
-		{
-			perror("pipe error");
-			exit(EXIT_FAILURE);
-		}
+		args2 = malloc(sizeofbuf * sizeof(char));
+		split_pipe(args, args2);
+		return p_forker_pipe(args, args2);
 	}
-	*/
-	//pipe_split(args, args2);
 	pid=fork();
 
 
-	if (pid == 0)
+	if (pid == 0)	//child process
 	{
 		if(new_out)
 			fp1= new_output(args, &error);
@@ -467,6 +490,7 @@ int p_forker(char **args) {
 			printf("myshell: rerouting error\n");
 			exit(1);
 		}
+
 		for(i=0; i<num_main_func(); i++)
 		{
 			if(strcmp(main_str[i], args[0])==0)
@@ -483,10 +507,12 @@ int p_forker(char **args) {
 				break;
 			}
 		}
+
 		if(flag)
 		{
 			exit(status);
 		}
+
 		if(execvp(args[0], args) == -1)
 		{
 			perror("myshell");
@@ -494,7 +520,6 @@ int p_forker(char **args) {
 		exit(EXIT_FAILURE);
 	} else if(pid < 0) {
 		perror("myshell");
-
 	} else {
 		if(background)
 			return 1;
@@ -507,3 +532,124 @@ int p_forker(char **args) {
 	return 1;
 }
 
+/*
+Arguments: pointer to char pointer
+Return: status integer
+Function creates a pipe to be used between to child processes. The process is forked twice and communcation is established between the two child processes.
+*/
+int p_forker_pipe(char **args, char **args2)
+{
+	pid_t pid1, pid2;
+	pid_t wpid1, wpid2;
+	int pipefd[2];
+	int status1, status2;
+	int i;
+	int status;
+	bool flag = false;
+
+	
+	//creates pipe with ends of pipe stored in pipefd
+	pipe(pipefd);
+
+	//create first fork, output process
+	pid1 = fork();
+	if(pid1 == 0)
+	{
+		dup2(pipefd[1], STDOUT_FILENO);
+		close(pipefd[0]);
+		for(i=0; i<num_main_func(); i++)
+		{
+			if(strcmp(main_str[i], args[0])==0)
+			{
+				status = (*main_func[i])(args);
+				flag = true;
+				break;
+			}
+		}
+		if(flag)
+		{
+			exit(status);
+		}
+
+		if(execvp(args[0], args) == -1)
+		{
+			perror("myshell");
+		}
+		exit(EXIT_FAILURE);
+	} else if(pid1 < 0)
+		perror("myshell");
+
+	//create second fork, receiving process
+	pid2 = fork();
+	if(pid2 == 0)
+	{
+		dup2(pipefd[0], STDIN_FILENO);
+		close(pipefd[1]);
+		for(i=0; i<num_main_func(); i++)
+		{
+			if(strcmp(main_str[i], args2[0])==0)
+			{
+				status = (*main_func[i])(args2);
+				flag = true;
+				break;
+			}
+		}
+		if(flag)
+		{
+			exit(status);
+		}
+
+		if(execvp(args2[0], args2) == -1)
+		{
+			perror("myshell");
+		}
+		exit(EXIT_FAILURE);
+	} else if(pid2 < 0) 
+		perror("myshell");
+
+	//close ends of pipe in main process
+	close(pipefd[0]);
+	close(pipefd[1]);
+
+	//wait on child processes
+	if(pid1 > 0 && pid2 > 0)
+	{
+		//waitpid(pid1);
+		//waitpid(pid2);
+		do 
+		{
+			wpid1 = waitpid(pid1, &status, WUNTRACED);
+			wpid2 = waitpid(pid2, &status2, WUNTRACED);
+		} while(!WIFEXITED(status) && !WIFSIGNALED(status) && !WIFEXITED(status2) && !WIFSIGNALED(status2));
+	}
+	return 1;
+}
+
+/*Argument: pointer to char pointer and pointer to char pointer
+Output: void
+Function splits the first string pointer at '|' between the first string array and the second string array.
+*/
+
+void split_pipe(char **args, char **args2)
+{
+	int i=0;
+	int j=0;
+	bool flag = false;
+	while(args[i+1] != NULL)
+	{
+		if(strcmp(args[i], "|") == 0)
+			flag = true;
+		if(flag)
+		{
+			args2[j] = args[i+1];
+			args[i] = NULL;
+			j++;
+		}
+		i++;
+	}
+	args2[j] = NULL;
+	args[i] = NULL;
+	if(!flag)
+		perror("myshell: expecting a pipe");
+	return;
+}
