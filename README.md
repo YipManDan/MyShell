@@ -12,4 +12,4 @@ Simultaneous input/output redirection
 Piping
 
 
-**If you are enrolled in OS at SCU and want to use this code, please see SCU Academic Poilcy!**
+**If you are enrolled in OS at SCU and want to use this code, please see SCU Academic Integrity Poilcy!**
